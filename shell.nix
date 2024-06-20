@@ -3,8 +3,10 @@
 #pkgs.clangStdenv.mkDerivation {
 #  name = "libcxxStdenv";
 # clang_13
-
-pkgs.mkShell {
+let
+  inherit (pkgs.lib) strings;
+  jobs = if (strings.hasSuffix "linux" builtins.currentSystem) then "$(($(nproc)))" else "6";
+in pkgs.mkShell {
     nativeBuildInputs = with pkgs; [
       autoconf
       automake
@@ -85,7 +87,7 @@ pkgs.mkShell {
       alias c_fast_wallet="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-tests --disable-bench"
 
       # make
-      alias m="make -j6"
+      alias m="make -j${jobs}"
 
       # configure + make combos
       alias cm="c && m"
