@@ -14,7 +14,7 @@ pkgs.mkShell {
       libevent
       zeromq
       sqlite
-      db48
+      db48 # Berkeley DB 4.8
       clang_18
 
       # tests
