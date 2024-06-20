@@ -26,6 +26,12 @@ in pkgs.mkShell {
       # https://github.com/bitcoin/bitcoin/blob/master/doc/productivity.md#cache-compilations-with-ccache
       ccache
 
+      # generating compile_commands.json for clang-format, clang-tidy, LSPs etc
+      # https://github.com/bitcoin/bitcoin/blob/master/doc/developer-notes.md#running-clang-tidy
+      # $ a && c && m clean && bear --config src/.bear-tidy-config -- make -j6
+      clang-tools_18
+      bear
+
       # for newer cmake building
       cmake
 
