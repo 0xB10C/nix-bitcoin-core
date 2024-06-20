@@ -15,7 +15,7 @@ pkgs.mkShell {
       zeromq
       sqlite
       db48
-      clang_13
+      clang_18
 
       # tests
       hexdump
