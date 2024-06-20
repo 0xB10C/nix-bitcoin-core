@@ -29,9 +29,10 @@ pkgs.mkShell {
       # only needed for older versions
       # openssl
 
-      # functional tests
+      # functional tests & linting
       python3
       python3Packages.flake8
+      python3Packages.lief
       python3Packages.autopep8
       python3Packages.mypy
       python3Packages.requests
