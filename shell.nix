@@ -20,6 +20,10 @@ pkgs.mkShell {
       # tests
       hexdump
 
+      # compiler output caching per
+      # https://github.com/bitcoin/bitcoin/blob/master/doc/productivity.md#cache-compilations-with-ccache
+      ccache
+
       # for newer cmake building
       cmake
 
