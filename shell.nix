@@ -60,7 +60,7 @@ pkgs.mkShell {
       echo "Bitcoin Core build nix-shell"
       echo ""
 
-      BCC_EGG=${pkgs.linuxPackages.bcc}/lib/python3.11/site-packages/bcc-0.29.1-py3.11.egg
+      BCC_EGG=${pkgs.linuxPackages.bcc}/${pkgs.python3.sitePackages}/bcc-${pkgs.linuxPackages.bcc.version}-py3.${pkgs.python3.sourceVersion.minor}.egg
 
       echo "adding bcc egg to PYTHONPATH: $BCC_EGG"
       if [ -f $BCC_EGG ]; then
