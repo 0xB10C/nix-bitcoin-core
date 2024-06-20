@@ -104,6 +104,9 @@ pkgs.mkShell {
       # all tests
       alias t="ut && ft"
 
+      echo "adding \$PWD/src to \$PATH to make running built binaries more natural"
+      export PATH=$PATH:$PWD/src;
+
       alias a c m c_fast cm acm acm_nw acm_fast ut ft t
     '';
 }
