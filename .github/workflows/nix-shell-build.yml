@@ -1,0 +1,36 @@
+name: build and test Bitcoin Core with the nix-shell
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        nixos-version: [ "nixos-24.05", "nixos-unstable" ] 
+        bitcoin-ref: [ "master", "v27.1" ]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Nix
+      uses: cachix/install-nix-action@v22
+      with:
+        nix_path: nixpkgs=channel:${{ matrix.nixos-version }}
+    - name: Checkout Bitcoin Core
+      uses: actions/checkout@v4
+      with:
+        repository: bitcoin/bitcoin
+        ref: ${{ matrix.bitcoin-ref }}
+        path: bitcoin
+    - name: Tell bash to do alias expansion in non-interactive shells
+      run: shopt -s expand_aliases
+    - name: Build with nix-shell
+      run: nix-shell --command "cd bitcoin && a && c && m"
+    - name: Run unit tests with nix-shell
+      run: nix-shell --command "cd bitcoin && ut"
+    - name: Run functional tests with nix-shell
+      run: nix-shell --command "cd bitcoin && ft"
