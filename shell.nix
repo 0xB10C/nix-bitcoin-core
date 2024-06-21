@@ -83,38 +83,32 @@ in pkgs.mkShell {
         echo "The bcc egg $BCC_EGG does not exist. Maybe the python or bcc version is different?"
       fi
 
-      # autogen
-      alias a="sh autogen.sh"
+      # Creates a new shorthand with the name $1 aliasing to the command $2
+      # We don't use aliases as they might not work in non-interactive shell sessions
+      # such as a CI. 
+      shorthand() {
+        eval "$1() { bash -c '$2'; }"
+        echo "alias $1 = $2"
+      };
 
-      # configure
-      alias c="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR"
-      alias c_no-wallet="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-wallet"
-      alias c_fast="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-wallet --disable-tests --disable-fuzz --disable-bench -disable-fuzz-binary"
-      alias c_fast_wallet="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-tests --disable-bench"
-
-      # make
-      alias m="make -j${jobs}"
-
-      # configure + make combos
-      alias cm="c && m"
-      alias cm_fast="c_fast && m"
-
-      # autogen + configure + make combos
-      alias acm="a && c && m"
-      alias acm_nw="a && c_no-wallet && m"
-      alias acm_fast="a && c_fast && m"
-      alias acm_fast_wallet="a && c_fast_wallet && m"
-
-      # tests
-      alias ut="make check"
-      # functional tests
-      alias ft="python3 test/functional/test_runner.py"
-      # all tests
-      alias t="ut && ft"
-
+      shorthand "a"               "sh autogen.sh"
+      shorthand "c"               "./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR"
+      shorthand "c_no-wallet"     "./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-wallet"
+      shorthand "c_fast"          "./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-wallet --disable-tests --disable-fuzz --disable-bench -disable-fuzz-binary"
+      shorthand "c_fast_wallet"   "./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-tests --disable-bench"
+      shorthand "m"               "make -j${jobs}"
+      shorthand "cm"              "c & m"
+      shorthand "cm_fast"         "c_fast && m"
+      shorthand "acm"             "a && c && m"
+      shorthand "acm_nw"          "a && c_no-wallet && m"
+      shorthand "acm_fast"        "a && c_fast && m"
+      shorthand "acm_fast_wallet" "a && c_fast_wallet && m"
+      shorthand "ut"              "make check"
+      shorthand "ft"              "python3 test/functional/test_runner.py"
+      shorthand "t"               "ut && ft"
+      echo ""
+      
       echo "adding \$PWD/src to \$PATH to make running built binaries more natural"
       export PATH=$PATH:$PWD/src;
-
-      alias a c m c_fast cm acm acm_nw acm_fast ut ft t
     '';
 }
