@@ -3,7 +3,7 @@ name: build and test Bitcoin Core with the nix-shell
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ "*" ]
   pull_request:
     branches: [ master ]
 
