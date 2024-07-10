@@ -26,11 +26,9 @@ jobs:
         repository: bitcoin/bitcoin
         ref: ${{ matrix.bitcoin-ref }}
         path: bitcoin
-    - name: Tell bash to do alias expansion in non-interactive shells
-      run: shopt -s expand_aliases
     - name: Build with nix-shell
-      run: nix-shell --command "cd bitcoin && a && c && m"
+      run: nix-shell --command "cd bitcoin && sh autogen.sh && ./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR && make -j4"
     - name: Run unit tests with nix-shell
-      run: nix-shell --command "cd bitcoin && ut"
+      run: nix-shell --command "cd bitcoin && make check"
     - name: Run functional tests with nix-shell
-      run: nix-shell --command "cd bitcoin && ft"
+      run: nix-shell --command "cd bitcoin && python3 test/functional/test_runner.py"
