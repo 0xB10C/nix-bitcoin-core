@@ -1,10 +1,26 @@
-{ pkgs ? import <nixpkgs> {} }:
-
+# Usage example:
+# $ nix-shell --arg withClang true --arg withDebug true
+{ pkgs ? import <nixpkgs> {},
+  withClang ? false,
+  withDebug ? false,
+  withGui ? false,
+}:
 #pkgs.clangStdenv.mkDerivation {
 #  name = "libcxxStdenv";
 # clang_13
 let
-  inherit (pkgs.lib) strings;
+  inherit (pkgs.lib) optionals strings;
+  binDirs =
+    [ "\$PWD/src" ]
+    ++ optionals withGui [ "\$PWD/src/qt" ];
+  configureFlags =
+    [ "--with-boost-libdir=$NIX_BOOST_LIB_DIR" ]
+    ++ optionals withClang [ "CXX=clang++" "CC=clang" ]
+    ++ optionals withDebug [ "--enable-debug" ]
+    ++ optionals withGui [
+      "--with-gui=qt5"
+      "--with-qt-bindir=${pkgs.qt5.qtbase.dev}/bin:${pkgs.qt5.qttools.dev}/bin"
+    ];
   jobs = if (strings.hasSuffix "linux" builtins.currentSystem) then "$(($(nproc)))" else "6";
 in pkgs.mkShell {
     nativeBuildInputs = with pkgs; [
@@ -60,7 +76,17 @@ in pkgs.mkShell {
       libsystemtap
       linuxPackages.bpftrace
       linuxPackages.bcc
+    ]
+    ++ lib.optionals withGui [
+      # bitcoin-qt
+      qt5.qtbase
+      # required for bitcoin-qt for "LRELEASE" etc
+      qt5.qttools
     ];
+
+    # Modifies the Nix clang++ wrapper to avoid warning:
+    # "_FORTIFY_SOURCE requires compiling with optimization (-O)"
+    hardeningDisable = if withDebug then [ "all" ] else [ ];
 
     # needed in 'autogen.sh'
     LIBTOOLIZE = "libtoolize";
@@ -68,6 +94,9 @@ in pkgs.mkShell {
     # needed for 'configure' to find boost
     # Run ./configure with the argument '--with-boost-libdir=\$NIX_BOOST_LIB_DIR'"
     NIX_BOOST_LIB_DIR = "${pkgs.boost}/lib";
+
+    # Fixes xcb plugin error when trying to launch bitcoin-qt
+    QT_QPA_PLATFORM_PLUGIN_PATH = if withGui then "${pkgs.qt5.qtbase.bin}/lib/qt-${pkgs.qt5.qtbase.version}/plugins/platforms" else "";
 
     shellHook = ''
       echo "Bitcoin Core build nix-shell"
@@ -87,10 +116,10 @@ in pkgs.mkShell {
       alias a="sh autogen.sh"
 
       # configure
-      alias c="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR"
-      alias c_no-wallet="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-wallet"
-      alias c_fast="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-wallet --disable-tests --disable-fuzz --disable-bench -disable-fuzz-binary"
-      alias c_fast_wallet="./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR --disable-tests --disable-bench"
+      alias c="./configure ${builtins.concatStringsSep " " configureFlags}"
+      alias c_no-wallet="./configure ${builtins.concatStringsSep " " configureFlags} --disable-wallet"
+      alias c_fast="./configure ${builtins.concatStringsSep " " configureFlags} --disable-wallet --disable-tests --disable-fuzz --disable-bench -disable-fuzz-binary"
+      alias c_fast_wallet="./configure ${builtins.concatStringsSep " " configureFlags} --disable-tests --disable-bench"
 
       # make
       alias m="make -j${jobs}"
@@ -112,8 +141,8 @@ in pkgs.mkShell {
       # all tests
       alias t="ut && ft"
 
-      echo "adding \$PWD/src to \$PATH to make running built binaries more natural"
-      export PATH=$PATH:$PWD/src;
+      echo "adding ${builtins.concatStringsSep ":" binDirs} to \$PATH to make running built binaries more natural"
+      export PATH=$PATH:${builtins.concatStringsSep ":" binDirs};
 
       alias a c m c_fast cm acm acm_nw acm_fast ut ft t
     '';
