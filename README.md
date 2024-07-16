@@ -14,5 +14,13 @@ ln -s ../nix-bitcoin-core/shell.nix .
 
 Get your terminal into the **bitcoin/** directory and do some variant of this:
 ```console
-nix-shell
+nix-shell --arg withClang true --arg withGui false
 ```
+
+### Supported arguments
+
+| Name         | Description                                   | Valid values  |
+|--------------|-----------------------------------------------|---------------|
+| `withClang`  | Whether to switch from GCC to Clang for compilation | `<boolean>` |
+| `withDebug`  | Whether to pass `--enable-debug` to `./configure` | `<boolean>` |
+| `withGui`    | Whether to enable bitcoin-qt                  | `<boolean>` |
