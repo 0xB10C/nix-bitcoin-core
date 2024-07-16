@@ -1,6 +1,7 @@
 # Usage example:
-# $ nix-shell --arg withClang true --arg spareCores 2
+# $ nix-shell --arg withClang true --arg spareCores 2 --argstr bdbVersion db5
 { pkgs ? import <nixpkgs> {},
+  bdbVersion ? "",
   spareCores ? 0,
   withClang ? false,
   withDebug ? false,
@@ -16,6 +17,9 @@ let
     ++ optionals withGui [ "\$PWD/src/qt" ];
   configureFlags =
     [ "--with-boost-libdir=$NIX_BOOST_LIB_DIR" ]
+    ++ optionals ((builtins.elem bdbVersion ["" "db48" "db5"]) || abort "Unsupported bdbVersion value: ${bdbVersion}") []
+    ++ optionals (bdbVersion == "") [ "--without-bdb" ]
+    ++ optionals (!(builtins.elem bdbVersion ["" "db48"])) [ "--with-incompatible-bdb" ]
     ++ optionals withClang [ "CXX=clang++" "CC=clang" ]
     ++ optionals withDebug [ "--enable-debug" ]
     ++ optionals withGui [
@@ -36,7 +40,6 @@ in pkgs.mkShell {
       libevent
       zeromq
       sqlite
-      db48 # Berkeley DB 4.8
       clang_18
 
       # tests
@@ -80,6 +83,12 @@ in pkgs.mkShell {
       libsystemtap
       linuxPackages.bpftrace
       linuxPackages.bcc
+    ]
+    ++ lib.optionals (bdbVersion == "db48") [
+      db48
+    ]
+    ++ lib.optionals (bdbVersion == "db5") [
+      db5
     ]
     ++ lib.optionals withGui [
       # bitcoin-qt

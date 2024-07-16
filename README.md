@@ -21,6 +21,7 @@ nix-shell --arg withClang true --arg withGui false
 
 | Name         | Description                                   | Valid values  |
 |--------------|-----------------------------------------------|---------------|
+| `bdbVersion` | Which version of Berkeley DB to use, if any.<br/>Use `--argstr` instead of `--arg` with this one. | `""` = off<br/>`"db48"` = Compatible v4.8<br/>`"db5"` = Incompatible v5.x |
 | `spareCores` | How many cores to exclude when running `make` | `<integer>` = less than the number of logical cores |
 | `withClang`  | Whether to switch from GCC to Clang for compilation | `<boolean>` |
 | `withDebug`  | Whether to pass `--enable-debug` to `./configure` | `<boolean>` |
