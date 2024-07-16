@@ -1,6 +1,7 @@
 # Usage example:
-# $ nix-shell --arg withClang true --arg withDebug true
+# $ nix-shell --arg withClang true --arg spareCores 2
 { pkgs ? import <nixpkgs> {},
+  spareCores ? 0,
   withClang ? false,
   withDebug ? false,
   withGui ? false,
@@ -21,7 +22,10 @@ let
       "--with-gui=qt5"
       "--with-qt-bindir=${pkgs.qt5.qtbase.dev}/bin:${pkgs.qt5.qttools.dev}/bin"
     ];
-  jobs = if (strings.hasSuffix "linux" builtins.currentSystem) then "$(($(nproc)))" else "6";
+  jobs =
+    if (strings.hasSuffix "linux" builtins.currentSystem) then "$(($(nproc)-${toString spareCores}))"
+    else if (strings.hasSuffix "darwin" builtins.currentSystem) then "$(($(sysctl -n hw.physicalcpu)-${toString spareCores}))"
+    else "6";
 in pkgs.mkShell {
     nativeBuildInputs = with pkgs; [
       autoconf

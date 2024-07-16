@@ -21,6 +21,7 @@ nix-shell --arg withClang true --arg withGui false
 
 | Name         | Description                                   | Valid values  |
 |--------------|-----------------------------------------------|---------------|
+| `spareCores` | How many cores to exclude when running `make` | `<integer>` = less than the number of logical cores |
 | `withClang`  | Whether to switch from GCC to Clang for compilation | `<boolean>` |
 | `withDebug`  | Whether to pass `--enable-debug` to `./configure` | `<boolean>` |
 | `withGui`    | Whether to enable bitcoin-qt                  | `<boolean>` |
