@@ -7,9 +7,6 @@
   withDebug ? false,
   withGui ? false,
 }:
-#pkgs.clangStdenv.mkDerivation {
-#  name = "libcxxStdenv";
-# clang_13
 let
   inherit (pkgs.lib) optionals strings;
   binDirs =
