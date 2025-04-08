@@ -1,159 +1,163 @@
 # Usage example:
-# $ nix-shell --arg withClang true --arg spareCores 2 --argstr bdbVersion db5
-{ pkgs ? import <nixpkgs> {},
-  bdbVersion ? "",
-  spareCores ? 0,
-  withClang ? false,
-  withDebug ? false,
-  withGui ? false,
-}:
+# $ nix-shell --arg spareCores 2 --arg withDebug true
+{ pkgs ? import <nixpkgs> { }, spareCores ? 0, withDebug ? false, }:
 let
-  inherit (pkgs.lib) optionals strings;
-  binDirs =
-    [ "\$PWD/src" ]
-    ++ optionals withGui [ "\$PWD/src/qt" ];
-  configureFlags =
-    [ "--with-boost-libdir=$NIX_BOOST_LIB_DIR" ]
-    ++ optionals ((builtins.elem bdbVersion ["" "db48" "db5"]) || abort "Unsupported bdbVersion value: ${bdbVersion}") []
-    ++ optionals (bdbVersion == "") [ "--without-bdb" ]
-    ++ optionals (!(builtins.elem bdbVersion ["" "db48"])) [ "--with-incompatible-bdb" ]
-    ++ optionals withClang [ "CXX=clang++" "CC=clang" ]
-    ++ optionals withDebug [ "--enable-debug" ]
-    ++ optionals withGui [
-      "--with-gui=qt5"
-      "--with-qt-bindir=${pkgs.qt5.qtbase.dev}/bin:${pkgs.qt5.qttools.dev}/bin"
-    ];
-  jobs =
-    if (strings.hasSuffix "linux" builtins.currentSystem) then "$(($(nproc)-${toString spareCores}))"
-    else if (strings.hasSuffix "darwin" builtins.currentSystem) then "$(($(sysctl -n hw.physicalcpu)-${toString spareCores}))"
-    else "6";
-in pkgs.mkShell {
-    nativeBuildInputs = with pkgs; [
-      autoconf
-      automake
-      libtool
-      pkg-config
-      boost
-      libevent
-      zeromq
-      sqlite
-      clang_18
+  inherit (pkgs.lib) strings;
 
-      # tests
-      hexdump
+  pinnedPkgs = import (builtins.fetchTarball {
+    url = "https://github.com/NixOS/nixpkgs/archive/50dc918cfe0dd0419403c957bcf395e881214416.tar.gz";
+    sha256 = "sha256:1wiz5n0l4mqjbrnqh2zs14lsfcb668xpv5b5psyzf5fdqq15mdbs";
+  }) {};
 
-      # compiler output caching per
-      # https://github.com/bitcoin/bitcoin/blob/master/doc/productivity.md#cache-compilations-with-ccache
-      ccache
+  # Lief v 0.13.2
+  pinnedLief = pinnedPkgs.python310Packages.lief;
 
-      # generating compile_commands.json for clang-format, clang-tidy, LSPs etc
-      # https://github.com/bitcoin/bitcoin/blob/master/doc/developer-notes.md#running-clang-tidy
-      # $ a && c && m clean && bear --config src/.bear-tidy-config -- make -j6
-      clang-tools_18
-      bear
+  binDirs = [ "$PWD/build/src" "$PWD/build/src/qt" ];
+  jobs = if (strings.hasSuffix "linux" builtins.currentSystem) then
+    "$(($(nproc)-${toString spareCores}))"
+  else if (strings.hasSuffix "darwin" builtins.currentSystem) then
+    "$(($(sysctl -n hw.physicalcpu)-${toString spareCores}))"
+  else
+    "6";
 
-      # for newer cmake building
-      cmake
+  libmultiprocess = pkgs.stdenv.mkDerivation {
+    name = "libmultiprocess";
+    src = pkgs.fetchFromGitHub {
+      owner = "bitcoin-core";
+      repo = "libmultiprocess";
+      rev = "f35df6bdc536b068597559d4ab470dab9cff7cfc";
+      sha256 = "sha256-1gg6MAql70JUXOdaP0A9Lmny5y6EFw55bJrzUvYRzMQ=";
+    };
 
-      # depends
-      byacc
+    nativeBuildInputs = [ pkgs.cmake pkgs.pkg-config ];
+    buildInputs = [ pkgs.capnproto ];
+    cmakeFlags =
+      [ "-DCMAKE_INSTALL_LIBDIR=lib" "-DCMAKE_INSTALL_INCLUDEDIR=include" ];
 
-      # only needed for older versions
-      # openssl
-
-      # functional tests & linting
-      python3
-      python3Packages.flake8
-      python3Packages.lief
-      python3Packages.autopep8
-      python3Packages.mypy
-      python3Packages.requests
-      python3Packages.pyzmq
-
-      # benchmarking
-      python3Packages.pyperf
-
-      # debugging
-      gdb
-
-      # tracing
-      libsystemtap
-      linuxPackages.bpftrace
-      linuxPackages.bcc
-    ]
-    ++ lib.optionals (bdbVersion == "db48") [
-      db48
-    ]
-    ++ lib.optionals (bdbVersion == "db5") [
-      db5
-    ]
-    ++ lib.optionals withGui [
-      # bitcoin-qt
-      qt5.qtbase
-      # required for bitcoin-qt for "LRELEASE" etc
-      qt5.qttools
-    ];
-
-    # Modifies the Nix clang++ wrapper to avoid warning:
-    # "_FORTIFY_SOURCE requires compiling with optimization (-O)"
-    hardeningDisable = if withDebug then [ "all" ] else [ ];
-
-    # needed in 'autogen.sh'
-    LIBTOOLIZE = "libtoolize";
-
-    # needed for 'configure' to find boost
-    # Run ./configure with the argument '--with-boost-libdir=\$NIX_BOOST_LIB_DIR'"
-    NIX_BOOST_LIB_DIR = "${pkgs.boost}/lib";
-
-    # Fixes xcb plugin error when trying to launch bitcoin-qt
-    QT_QPA_PLATFORM_PLUGIN_PATH = if withGui then "${pkgs.qt5.qtbase.bin}/lib/qt-${pkgs.qt5.qtbase.version}/plugins/platforms" else "";
-
-    shellHook = ''
-      echo "Bitcoin Core build nix-shell"
-      echo ""
-
-      BCC_EGG=${pkgs.linuxPackages.bcc}/${pkgs.python3.sitePackages}/bcc-${pkgs.linuxPackages.bcc.version}-py3.${pkgs.python3.sourceVersion.minor}.egg
-
-      echo "adding bcc egg to PYTHONPATH: $BCC_EGG"
-      if [ -f $BCC_EGG ]; then
-        export PYTHONPATH="$PYTHONPATH:$BCC_EGG"
-        echo ""
-      else
-        echo "The bcc egg $BCC_EGG does not exist. Maybe the python or bcc version is different?"
-      fi
-
-      # autogen
-      alias a="sh autogen.sh"
-
-      # configure
-      alias c="./configure ${builtins.concatStringsSep " " configureFlags}"
-      alias c_no-wallet="./configure ${builtins.concatStringsSep " " configureFlags} --disable-wallet"
-      alias c_fast="./configure ${builtins.concatStringsSep " " configureFlags} --disable-wallet --disable-tests --disable-fuzz --disable-bench -disable-fuzz-binary"
-      alias c_fast_wallet="./configure ${builtins.concatStringsSep " " configureFlags} --disable-tests --disable-bench"
-
-      # make
-      alias m="make -j${jobs}"
-
-      # configure + make combos
-      alias cm="c && m"
-      alias cm_fast="c_fast && m"
-
-      # autogen + configure + make combos
-      alias acm="a && c && m"
-      alias acm_nw="a && c_no-wallet && m"
-      alias acm_fast="a && c_fast && m"
-      alias acm_fast_wallet="a && c_fast_wallet && m"
-
-      # tests
-      alias ut="make check"
-      # functional tests
-      alias ft="python3 test/functional/test_runner.py"
-      # all tests
-      alias t="ut && ft"
-
-      echo "adding ${builtins.concatStringsSep ":" binDirs} to \$PATH to make running built binaries more natural"
-      export PATH=$PATH:${builtins.concatStringsSep ":" binDirs};
-
-      alias a c m c_fast cm acm acm_nw acm_fast ut ft t
+    # Optional test check
+    doCheck = true;
+    checkPhase = ''
+      make check
     '';
+
+    # Make sure pkg-config and cmake files are properly installed
+    postInstall = ''
+      mkdir -p $out/lib/pkgconfig
+    '';
+
+    # Makes sure that the pkg-config and cmake files can find dependencies
+    setupHook = pkgs.writeText "setup-hook.sh" ''
+      export PKG_CONFIG_PATH="''${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}${
+        placeholder "out"
+      }/lib/pkgconfig"
+      export CMAKE_PREFIX_PATH="''${CMAKE_PREFIX_PATH:+$CMAKE_PREFIX_PATH:}${
+        placeholder "out"
+      }"
+    '';
+
+    meta = with pkgs.lib; {
+      description = "Multi-process library";
+      homepage = "https://github.com/bitcoin-core/libmultiprocess";
+      license = licenses.mit;
+    };
+  };
+in pkgs.mkShell {
+  nativeBuildInputs = with pkgs; [
+    # Essential build tools
+    boost
+    ccache
+    clang-tools_19
+    clang_19
+    cmake
+    gcc14
+    libevent
+    pkg-config
+    sqlite
+
+    # Optional build dependencies
+    capnproto
+    db4
+    libmultiprocess
+    qrencode
+    zeromq
+
+    # Tests
+    hexdump
+
+    # Depends
+    byacc
+
+    # Functional tests & linting
+    python310
+    python310Packages.autopep8
+    python310Packages.flake8
+    pinnedLief
+    python310Packages.mypy
+    python310Packages.pyzmq
+    python310Packages.requests
+
+    # Benchmarking
+    python310Packages.pyperf
+
+    # Debugging
+    gdb
+
+    # Tracing
+    libsystemtap
+    linuxPackages.bcc
+    linuxPackages.bpftrace
+
+    # Bitcoin-qt
+    qt5.qtbase
+    # required for bitcoin-qt for "LRELEASE" etc
+    qt5.qttools
+  ];
+
+  # Modifies the Nix clang++ wrapper to avoid warning:
+  # "_FORTIFY_SOURCE requires compiling with optimization (-O)"
+  hardeningDisable = if withDebug then [ "all" ] else [ ];
+
+  # Fixes xcb plugin error when trying to launch bitcoin-qt
+  QT_QPA_PLATFORM_PLUGIN_PATH =
+    "${pkgs.qt5.qtbase.bin}/lib/qt-${pkgs.qt5.qtbase.version}/plugins/platforms";
+
+  shellHook = ''
+    echo "Bitcoin Core build nix-shell"
+    echo ""
+
+    BCC_EGG=${pkgs.linuxPackages.bcc}/${pkgs.python3.sitePackages}/bcc-${pkgs.linuxPackages.bcc.version}-py3.${pkgs.python3.sourceVersion.minor}.egg
+    if [ -f $BCC_EGG ]; then
+      export PYTHONPATH="$PYTHONPATH:$BCC_EGG"
+    else
+      echo "The bcc egg $BCC_EGG does not exist. Maybe the python or bcc version is different?"
+    fi
+
+    # Building
+    alias c="cmake -B build"
+    alias ca="cmake -B build --preset=dev-mode"
+    alias b="cmake --build build -j ${jobs}"
+    alias build="c && b"
+    alias build-all="ca && b"
+
+    # Cleaning
+    alias clean="rm -Rf build"
+
+    # Unit tests
+    alias ut="ctest --test-dir build -j ${jobs}"
+
+    # Functional tests
+    alias ft="python3 build/test/functional/test_runner.py -j ${jobs}"
+
+    # All tests
+    alias t="ut && ft"
+    alias test="t"
+
+    # Linting
+    alias lint="DOCKER_BUILDKIT=1 docker build -t bitcoin-linter --file "./ci/lint_imagefile" ./ && docker run --rm -v $(pwd):/bitcoin -it bitcoin-linter"
+
+    export PATH=$PATH:${builtins.concatStringsSep ":" binDirs};
+    echo "Added ${
+      builtins.concatStringsSep ":" binDirs
+    } to \$PATH to make running built binaries more natural"
+  '';
 }

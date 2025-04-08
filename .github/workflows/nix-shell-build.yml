@@ -11,8 +11,8 @@ jobs:
   build:
     strategy:
       matrix:
-        nixos-version: [ "nixos-24.05", "nixos-unstable" ] 
-        bitcoin-ref: [ "master", "v27.1" ]
+        nixos-version: [ "nixos-24.11", "nixos-unstable" ]
+        bitcoin-ref: [ "master", "v29.0rc2" ]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -27,8 +27,8 @@ jobs:
         ref: ${{ matrix.bitcoin-ref }}
         path: bitcoin
     - name: Build with nix-shell
-      run: nix-shell --command "cd bitcoin && sh autogen.sh && ./configure --with-boost-libdir=\$NIX_BOOST_LIB_DIR && make -j4"
+      run: nix-shell --command "cd bitcoin && cmake -B build && cmake --build build -j4"
     - name: Run unit tests with nix-shell
-      run: nix-shell --command "cd bitcoin && make check"
+      run: nix-shell --command "cd bitcoin && ctest --test-dir build -j4"
     - name: Run functional tests with nix-shell
-      run: nix-shell --command "cd bitcoin && python3 test/functional/test_runner.py"
+      run: nix-shell --command "cd bitcoin && python3 build/test/functional/test_runner.py -j4 --tmpdir ${{ github.workspace}}/test"
